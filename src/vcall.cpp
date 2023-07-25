@@ -45,6 +45,7 @@ void jitc_vcall_set_self(JitBackend backend, uint32_t value, uint32_t index) {
             Variable v;
             v.kind = VarKind::VCallSelf;
             v.backend = (uint32_t) backend;
+            v.device = (int32_t) ts->device;
             v.size = 1u;
             v.type = (uint32_t) VarType::UInt32;
             v.placeholder = true;

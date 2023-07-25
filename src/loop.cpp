@@ -70,6 +70,7 @@ uint32_t jitc_var_loop_init(size_t n_indices, uint32_t **indices) {
     JitBackend backend = (JitBackend) jitc_var(*indices[0])->backend;
     uint32_t size = 0;
     bool dirty = false;
+    int device = jitc_var(*indices[0])->device;
 
     for (size_t i = 0; i < n_indices; ++i) {
         const Variable *v = jitc_var(*indices[i]);
@@ -79,6 +80,12 @@ uint32_t jitc_var_loop_init(size_t n_indices, uint32_t **indices) {
                        "inconsistent size (%u vs %u)!", vsize, size);
         if (vsize > size)
             size = vsize;
+
+        if (device != v->device)
+            jitc_raise("jit_var_loop_init(): loop state variables have "
+                       "inconsistent devices (%u vs %u)!", device, v->device);
+        else
+            device = std::max(v->device, device);
 
         dirty |= v->is_dirty();
     }
@@ -99,6 +106,7 @@ uint32_t jitc_var_loop_init(size_t n_indices, uint32_t **indices) {
     v.size = size;
     v.placeholder = 1;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) device;
 
     // Copy loop state before entering loop (CUDA)
     if (backend == JitBackend::CUDA) {
@@ -137,10 +145,12 @@ uint32_t jitc_var_loop_cond(uint32_t loop_init, uint32_t cond,
                             size_t n_indices, uint32_t **indices) {
     uint32_t size;
     JitBackend backend;
+    int32_t device;
     {
         Variable *v = jitc_var(loop_init);
         size = v->size;
         backend = (JitBackend) v->backend;
+        device = v->device;
     }
 
     jitc_new_scope(backend);
@@ -157,6 +167,7 @@ uint32_t jitc_var_loop_cond(uint32_t loop_init, uint32_t cond,
     v.size = size;
     v.placeholder = 1;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) device;
 
     // Create Phi nodes to represent state at the beginning of the loop body
     v.stmt = (char *) (backend == JitBackend::LLVM
@@ -474,6 +485,7 @@ uint32_t jitc_var_loop(const char *name, uint32_t loop_init,
         v2.size = size;
         v2.placeholder = placeholder;
         v2.backend = (uint32_t) backend;
+        v2.device = jitc_var(loop->cond)->device;
         v2.dep[1] = loop_end;
 
         for (size_t i = 0; i < n_indices; ++i) {

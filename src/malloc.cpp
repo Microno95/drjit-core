@@ -129,7 +129,7 @@ void* jitc_malloc(AllocType type, size_t size) {
             : JitBackend::LLVM;
     ThreadState *ts = nullptr;
 
-    int device = 0;
+    int device = -1;
     if (backend == JitBackend::CUDA) {
         ts = thread_state(backend);
         device = ts->device;
@@ -316,30 +316,30 @@ void* jitc_malloc_migrate(void *ptr, AllocType dst_type, int move) {
                    "host-asynchronous memory are not supported.");
 
     /// At this point, source or destination is a GPU array, get assoc. state
-    ThreadState *ts = thread_state(JitBackend::CUDA);
+    auto cuda_device = state.devices[device != -1 ? device : thread_state(JitBackend::CUDA)->device];
 
     if (dst_type == AllocType::Host) // Upgrade from host to host-pinned memory
         dst_type = AllocType::HostPinned;
 
     void *ptr_new = jitc_malloc(dst_type, size);
-    jitc_trace("jit_malloc_migrate(" DRJIT_PTR " -> " DRJIT_PTR ", %s -> %s)",
+    jitc_trace("jit_malloc_migrate(" DRJIT_PTR " -> " DRJIT_PTR ", %s%s -> %s%s)",
               (uintptr_t) ptr, (uintptr_t) ptr_new,
-              alloc_type_name[(int) src_type],
-              alloc_type_name[(int) dst_type]);
+              alloc_type_name[(int) src_type], src_type == AllocType::Device ? (std::string(":") + std::to_string(cuda_device.id)).c_str() : "",
+              alloc_type_name[(int) dst_type], dst_type == AllocType::Device ? (std::string(":") + std::to_string(cuda_device.id)).c_str() : "");
 
-    scoped_set_context guard(ts->context);
+    scoped_set_context guard(cuda_device.context);
     if (src_type == AllocType::Host) {
         // Host -> Device memory, create an intermediate host-pinned array
         void *tmp = jitc_malloc(AllocType::HostPinned, size);
         memcpy(tmp, ptr, size);
         cuda_check(cuMemcpyAsync((CUdeviceptr) ptr_new,
                                  (CUdeviceptr) ptr, size,
-                                 ts->stream));
+                                 cuda_device.stream));
         jitc_free(tmp);
     } else {
         cuda_check(cuMemcpyAsync((CUdeviceptr) ptr_new,
                                  (CUdeviceptr) ptr, size,
-                                 ts->stream));
+                                 cuda_device.stream));
     }
 
     if (move)

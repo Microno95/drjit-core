@@ -191,6 +191,9 @@ struct Variable {
     /// Backend associated with this variable
     uint32_t backend : 2;
 
+    /// Device associated with this variable
+    int32_t device;
+
     /// Variable type (Bool/Int/Float/....)
     uint32_t type : 4;
 
@@ -256,6 +259,7 @@ struct Variable {
 
 /// Abbreviated version of the Variable data structure
 struct VariableKey {
+    int32_t device;
     uint32_t size;
     uint32_t scope;
     uint32_t dep[4];
@@ -283,6 +287,7 @@ struct VariableKey {
 
         kind = v.kind;
         backend = v.backend;
+        device = v.device;
         type = v.type;
         write_ptr = v.write_ptr;
         free_stmt = v.free_stmt;
@@ -290,7 +295,7 @@ struct VariableKey {
     }
 
     bool operator==(const VariableKey &v) const {
-        if (memcmp(this, &v, 7 * sizeof(uint32_t)) != 0)
+        if (memcmp(this, &v, 7 * sizeof(uint32_t) + sizeof(int8_t)) != 0)
             return false;
         if ((VarKind) kind != VarKind::Stmt)
             return literal == v.literal;
@@ -314,9 +319,9 @@ struct VariableKeyHasher {
         else
             hash_1 = hash_str(k.stmt);
 
-        uint32_t buf[7];
-        size_t size = 7 * sizeof(uint32_t);
-        memcpy(buf, &k, size);
+        uint32_t buf[8] = {0,0,0,0,0,0,0,0};
+        size_t size = 8*sizeof(uint32_t);
+        memcpy(buf, &k, sizeof(int32_t)+7*sizeof(uint32_t));
         return hash(buf, size, hash_1);
     }
 };
@@ -730,11 +735,11 @@ struct State {
 
 #if defined(DRJIT_ENABLE_OPTIX)
     /// Default OptiX pipeline for testcases etc.
-    OptixPipelineData *optix_default_pipeline = nullptr;
+    tsl::robin_map<uint32_t, OptixPipelineData*> optix_default_pipeline;
     /// Default OptiX Shader Binding Table for testcases etc.
-    OptixShaderBindingTable *optix_default_sbt = nullptr;
+    tsl::robin_map<uint32_t, OptixShaderBindingTable*> optix_default_sbt;
     /// Index of the JIT variable handling the lifetime of the default Optix SBT
-    uint32_t optix_default_sbt_index = 0;
+    tsl::robin_map<uint32_t, uint32_t> optix_default_sbt_index;
 #endif
 
     /// Return a pointer to the registry corresponding to the specified backend

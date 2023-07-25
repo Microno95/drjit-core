@@ -52,11 +52,11 @@ __itt_domain *drjit_domain = __itt_domain_create("drjit");
 #endif
 
 static_assert(
-    sizeof(VariableKey) == 9 * sizeof(uint32_t),
+    sizeof(VariableKey) == 9 * sizeof(uint32_t) + sizeof(int32_t),
     "VariableKey: incorrect size, likely an issue with padding/packing!");
 
 static_assert(
-    sizeof(tsl::detail_robin_hash::bucket_entry<VariableMap::value_type, false>) == 64,
+    sizeof(tsl::detail_robin_hash::bucket_entry<VariableMap::value_type, false>) == 72,
     "VariableMap: incorrect bucket size, likely an issue with padding/packing!");
 
 static ProfilerRegion profiler_region_init("jit_init");
@@ -173,10 +173,10 @@ void jitc_shutdown(int light) {
 
     if (!state.kernel_cache.empty()) {
         jitc_log(Info, "jit_shutdown(): releasing %zu kernel%s ..",
-                state.kernel_cache.size(),
-                state.kernel_cache.size() > 1 ? "s" : "");
+                 state.kernel_cache.size(),
+                 state.kernel_cache.size() > 1 ? "s" : "");
 
-        for (auto &v : state.kernel_cache) {
+        for (auto &v: state.kernel_cache) {
             jitc_kernel_free(v.first.device, v.second);
             free(v.first.str);
         }
@@ -210,11 +210,19 @@ void jitc_shutdown(int light) {
 
 #if defined(DRJIT_ENABLE_OPTIX)
     // Free the default OptiX shader binding table and pipeline (ref counting)
-    if (state.optix_default_sbt_index) {
-        jitc_var_dec_ref(state.optix_default_sbt_index);
-        state.optix_default_sbt_index = 0;
+    for (auto &&[key, optix_sbt] : state.optix_default_sbt_index) {
+        jitc_var_dec_ref(optix_sbt);
+        state.optix_default_sbt_index[key] = 0;
     }
+    state.optix_default_sbt_index.clear();
+    state.optix_default_pipeline.clear();
+    state.optix_default_sbt.clear();
 #endif
+
+    for (auto &&device : state.devices) {
+        scoped_set_context guard(device.context);
+        cuda_check(cuStreamSynchronize(device.stream));
+    }
 
     if (!state.tss.empty()) {
         jitc_log(Info, "jit_shutdown(): releasing %zu thread state%s ..",
@@ -325,7 +333,7 @@ void jitc_shutdown(int light) {
 
 
 ThreadState *jitc_init_thread_state(JitBackend backend) {
-    ThreadState *ts = new ThreadState();
+    auto *ts = new ThreadState();
 
     if (backend == JitBackend::CUDA) {
         if ((state.backends & (uint32_t) JitBackend::CUDA) == 0) {
@@ -487,6 +495,10 @@ void jitc_sync_all_devices() {
     unlock_guard guard(state.lock);
     for (ThreadState *ts : tss)
         jitc_sync_thread(ts);
+    for (auto &&device : state.devices) {
+        scoped_set_context guard_cu(device.context);
+        cuda_check(cuStreamSynchronize(device.stream));
+    }
 }
 
 static void jitc_rebuild_prefix(ThreadState *ts) {

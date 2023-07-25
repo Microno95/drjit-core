@@ -6,10 +6,10 @@ TEST_BOTH(01_all_any) {
 
     scoped_set_log_level ssll(LogLevel::Info);
     for (uint32_t i = 0; i < 100; ++i) {
-        uint32_t size = 23*i*i*i + 1;
+        uint32_t size = 23 * i * i * i + 1;
 
         Bool f = full<Bool>(false, size),
-             t = full<Bool>(true, size);
+                t = full<Bool>(true, size);
 
         jit_var_eval(f.index());
         jit_var_eval(t.index());
@@ -36,16 +36,16 @@ TEST_BOTH(01_all_any) {
 TEST_BOTH(02_scan) {
     scoped_set_log_level ssll(LogLevel::Info);
     for (uint32_t i = 0; i < 100; ++i) {
-        uint32_t size = 23*i*i*i + 1;
+        uint32_t size = 23 * i * i * i + 1;
 
         UInt32 result, ref;
 
         if (i < 15) {
             result = arange<UInt32>(size);
-            ref    = result * (result - 1) / 2;
+            ref = result * (result - 1) / 2;
         } else {
             result = full<UInt32>(1, size);
-            ref    = arange<UInt32>(size);
+            ref = arange<UInt32>(size);
         }
         jit_var_schedule(result.index());
         jit_var_schedule(ref.index());
@@ -58,16 +58,16 @@ TEST_BOTH(02_scan) {
 TEST_BOTH(03_compress) {
     scoped_set_log_level ssll(LogLevel::Info);
     for (uint32_t i = 0; i < 30; ++i) {
-        uint32_t size = 23*i*i*i + 1;
+        uint32_t size = 23 * i * i * i + 1;
         for (uint32_t j = 0; j <= i; ++j) {
-            uint32_t n_ones = 23*j*j*j + 1;
+            uint32_t n_ones = 23 * j * j * j + 1;
 
             jit_log(LogLevel::Info, "===== size=%u, ones=%u =====", size, n_ones);
-            uint8_t *data      = (uint8_t *) jit_malloc(AllocType::Host, size);
-            uint32_t *perm     = (uint32_t *) jit_malloc(Float::Backend == JitBackend::CUDA ? AllocType::Device :
-                                                                          AllocType::Host,
-                                                          size * sizeof(uint32_t)),
-                     *perm_ref = (uint32_t *) jit_malloc(AllocType::Host, size * sizeof(uint32_t));
+            uint8_t *data = (uint8_t *) jit_malloc(AllocType::Host, size);
+            uint32_t *perm = (uint32_t *) jit_malloc(Float::Backend == JitBackend::CUDA ? AllocType::Device :
+                                                     AllocType::Host,
+                                                     size * sizeof(uint32_t)),
+                    *perm_ref = (uint32_t *) jit_malloc(AllocType::Host, size * sizeof(uint32_t));
             memset(data, 0, size);
 
             for (size_t k = 0; k < n_ones; ++k) {
@@ -82,7 +82,7 @@ TEST_BOTH(03_compress) {
             }
 
             data = (uint8_t *) jit_malloc_migrate(
-                data, Float::Backend == JitBackend::CUDA ? AllocType::Device : AllocType::Host);
+                    data, Float::Backend == JitBackend::CUDA ? AllocType::Device : AllocType::Host);
 
             uint32_t count = jit_compress(Float::Backend, data, size, perm);
             perm = (uint32_t *) jit_malloc_migrate(perm, AllocType::Host);
@@ -99,21 +99,21 @@ TEST_BOTH(03_compress) {
 }
 
 TEST_BOTH(04_mkperm) {
-    scoped_set_log_level ssll(LogLevel::Info);
+    scoped_set_log_level ssll(LogLevel::Trace);
     srand(0);
     for (uint32_t i = 0; i < 30; ++i) {
-        uint32_t size = 23*i*i*i + 1;
+        uint32_t size = 23 * i * i * i + 1;
         for (uint32_t j = 0; j <= i; ++j) {
-            uint32_t n_buckets = 23*j*j*j + 1;
+            uint32_t n_buckets = 23 * j * j * j + 1;
 
             jit_log(LogLevel::Info, "===== size=%u, buckets=%u =====", size, n_buckets);
-            uint32_t *data    = (uint32_t *) jit_malloc(AllocType::Host, size * sizeof(uint32_t)),
-                     *perm    = (uint32_t *) jit_malloc(Float::Backend == JitBackend::CUDA ? AllocType::Device :
-                                                                                             AllocType::Host,
-                                                         size * sizeof(uint32_t)),
-                     *offsets = (uint32_t *) jit_malloc(Float::Backend == JitBackend::CUDA ? AllocType::HostPinned :
-                                                                                             AllocType::Host,
-                                                         (n_buckets * 4 + 1) * sizeof(uint32_t));
+            uint32_t *data = (uint32_t *) jit_malloc(AllocType::Host, size * sizeof(uint32_t)),
+                     *perm = (uint32_t *) jit_malloc(Float::Backend == JitBackend::CUDA ? AllocType::Device :
+                                                    AllocType::Host,
+                                                    size * sizeof(uint32_t)),
+                  *offsets = (uint32_t *) jit_malloc(Float::Backend == JitBackend::CUDA ? AllocType::HostPinned :
+                                                       AllocType::Host,
+                                                       (n_buckets * 4 + 1) * sizeof(uint32_t));
             uint64_t *ref = new uint64_t[size];
 
             for (size_t k = 0; k < size; ++k) {
@@ -122,7 +122,8 @@ TEST_BOTH(04_mkperm) {
                 ref[k] = (((uint64_t) value) << 32) | k;
             }
 
-            data = (uint32_t *) jit_malloc_migrate(data, Float::Backend == JitBackend::CUDA ? AllocType::Device : AllocType::Host);
+            data = (uint32_t *) jit_malloc_migrate(data, Float::Backend == JitBackend::CUDA ? AllocType::Device
+                                                                                            : AllocType::Host);
             uint32_t num_unique = jit_mkperm(Float::Backend, data, size, n_buckets, perm, offsets);
 
             perm = (uint32_t *) jit_malloc_migrate(perm, AllocType::Host);
@@ -139,9 +140,9 @@ TEST_BOTH(04_mkperm) {
 
             std::sort(ref, ref + size);
             std::sort(buckets, buckets + num_unique,
-                [](const Bucket &a, const Bucket &b) {
-                    return a.id < b.id;
-                }
+                      [](const Bucket &a, const Bucket &b) {
+                          return a.id < b.id;
+                      }
             );
 
             uint32_t total_size = 0;
@@ -151,12 +152,12 @@ TEST_BOTH(04_mkperm) {
                 jit_fail("Size mismatch: %u vs %u\n", total_size, size);
 
             const uint64_t *ref_ptr = ref;
-            for (uint32_t j = 0; j < num_unique; ++j) {
-                const Bucket &entry = buckets[j];
+            for (uint32_t l = 0; l < num_unique; ++l) {
+                const Bucket &entry = buckets[l];
                 uint32_t *perm_cur = perm + entry.start;
 
 #if 0
-                for (size_t k = 0; k < entry.size; ++k) {
+                for (size_t k = 0; (k < entry.size) && i == 20 && j == 14; ++k) {
                     uint64_t ref_value = ref_ptr[k];
                     uint32_t bucket_id = (uint32_t) (ref_value >> 32);
                     uint32_t perm_index = (uint32_t) ref_value;

@@ -126,16 +126,16 @@ OptixDeviceContext jitc_optix_context() {
         auto it2 = state.extra.find(pipeline_index);
         if (it2 == state.extra.end())
             jitc_fail("jitc_optix_context(): 'extra' entry not found!");
-        state.optix_default_pipeline = (OptixPipelineData*) it2->second.callback_data;
+        state.optix_default_pipeline[ts->device] = (OptixPipelineData*) it2->second.callback_data;
 
         uint32_t sbt_index = jitc_optix_configure_sbt(&sbt, pipeline_index);
         auto it = state.extra.find(sbt_index);
         if (it == state.extra.end())
             jitc_fail("jitc_optix_context(): 'extra' entry not found!");
-        state.optix_default_sbt
+        state.optix_default_sbt[ts->device]
             = (OptixShaderBindingTable*) it->second.callback_data;
 
-        state.optix_default_sbt_index = sbt_index;
+        state.optix_default_sbt_index[ts->device] = sbt_index;
         jitc_var_dec_ref(pipeline_index);
     }
 

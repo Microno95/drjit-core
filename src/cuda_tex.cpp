@@ -469,6 +469,7 @@ Variable jitc_cuda_tex_check(size_t ndim, const uint32_t *pos) {
     uint32_t size = 0;
     bool dirty = false, placeholder = false;
     JitBackend backend = JitBackend::Invalid;
+    int32_t device = -1;
 
     if (ndim < 1 || ndim > 3)
         jitc_raise("jit_cuda_tex_check(): invalid texture dimension!");
@@ -479,10 +480,14 @@ Variable jitc_cuda_tex_check(size_t ndim, const uint32_t *pos) {
             jitc_raise("jit_cuda_tex_check(): type mismatch for arg. %zu (got "
                        "%s, expected %s)", i, type_name[v->type],
                        type_name[(int) VarType::Float32]);
+        if (v->device != device && device >= 0)
+            jitc_raise("jit_cuda_tex_check(): device mismatch for arg. %zu (got"
+                       "%d, expected %d)", i, v->device, device);
         size = std::max(size, v->size);
         dirty |= v->is_dirty();
         placeholder |= (bool) v->placeholder;
         backend = (JitBackend) v->backend;
+        device = v->device;
     }
 
     for (uint32_t i = 0; i < ndim; ++i) {
@@ -504,6 +509,7 @@ Variable jitc_cuda_tex_check(size_t ndim, const uint32_t *pos) {
     Variable v;
     v.size = size;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) device;
     v.placeholder = placeholder;
     v.type = (uint32_t) VarType::Float32;
     return v;

@@ -1,6 +1,9 @@
 #include <drjit-core/array.h>
 #include <cstdio>
 #include <cstring>
+#include <thread>
+#include <iostream>
+#include <random>
 
 #include "optix_stubs.h"
 
@@ -32,7 +35,7 @@ using UInt32 = dr::CUDAArray<uint32_t>;
 using UInt64 = dr::CUDAArray<uint64_t>;
 using Mask = dr::CUDAArray<bool>;
 
-void demo() {
+void demo(bool print_out) {
     OptixDeviceContext context = jit_optix_context();
 
     // =====================================================
@@ -80,7 +83,7 @@ void demo() {
 
     OptixTraversableHandle gas_handle;
     jit_optix_check(optixAccelBuild(
-        context, 0, &accel_options, &triangle_input, 1, d_gas_temp,
+        context, nullptr, &accel_options, &triangle_input, 1, d_gas_temp,
         gas_buffer_sizes.tempSizeInBytes, d_gas,
         gas_buffer_sizes.outputSizeInBytes, &gas_handle, &build_property, 1));
 
@@ -110,7 +113,8 @@ void demo() {
 
     OptixModuleCompileOptions module_compile_options { };
     module_compile_options.debugLevel =
-        OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+            OPTIX_COMPILE_DEBUG_LEVEL_FULL;
+    module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
 
     OptixPipelineCompileOptions pipeline_compile_options { };
     pipeline_compile_options.usesMotionBlur = false;
@@ -205,15 +209,16 @@ void demo() {
     ));
 
     // Do four times to verify caching, with mask in it. 3 + 4
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < 3; ++i) {
         // =====================================================
         // Generate a camera ray
         // =====================================================
 
-        int res = 16;
-        UInt32 index = dr::arange<UInt32>(res * res),
-               x     = index % res,
-               y     = index / res;
+        std::cout << "Iteration: " << i << std::endl;
+        int res = 512;
+        auto index = dr::arange<UInt32>(res * res);
+        UInt32 x     = index % res;
+        UInt32 y     = index / res;
 
         Float ox = Float(x) * (2.0f / res) - 1.0f,
               oy = Float(y) * (2.0f / res) - 1.0f,
@@ -255,12 +260,14 @@ void demo() {
             UInt32::steal(jit_var_migrate(payload_0.index(), AllocType::Host));
         jit_sync_thread();
 
-        for (int k = 0; k < res; ++k) {
-            for (int j = 0; j < res; ++j)
-                printf("%i ", payload_0_host.data()[k*res + j]);
+        if (print_out) {
+            for (int k = 0; k < res; ++k) {
+                for (int j = 0; j < res; ++j)
+                    printf("%i ", payload_0_host.data()[k * res + j]);
+                printf("\n");
+            }
             printf("\n");
         }
-        printf("\n");
     }
 
     // =====================================================
@@ -270,11 +277,38 @@ void demo() {
     jit_free(d_gas);
 }
 
+void set_device_with_sync_and_flush(int device_id) {
+//    jit_flush_malloc_cache();
+    jit_flush_kernel_cache();
+    jit_cuda_set_device(device_id);
+}
+
+void worker_thread(int device_id)
+{
+    set_device_with_sync_and_flush(device_id);
+    demo(false);
+}
+
 int main(int, char **) {
     jit_init((int) JitBackend::CUDA);
-    // jit_set_log_level_stderr(LogLevel::Trace);
     init_optix_api();
-    demo();
+    jit_set_flag(JitFlag::LaunchBlocking, true);
+    jit_set_log_level_stderr(LogLevel::Trace);
+
+    for (auto n = 0; n < 32; ++n) {
+        set_device_with_sync_and_flush(n % 2);
+        demo(true);
+    }
+
+    for (auto n = 0; n < 32; ++n) {
+        auto threads = std::vector<std::thread>();
+        for (auto m = 0; m < 32; ++m) {
+            threads.emplace_back(worker_thread, m%2);
+        }
+        for (auto &&thr : threads) {
+            thr.join();
+        }
+    }
 
     // Shut down Dr.Jit (will destroy OptiX device context)
     jit_shutdown();

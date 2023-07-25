@@ -17,13 +17,13 @@ using AllocInfo = uint64_t;
 
 inline AllocInfo alloc_info_encode(size_t size, AllocType type, int device) {
     return (((uint64_t) size) << 16) + (((uint64_t) type) << 8) +
-           ((uint64_t) device);
+           ((uint64_t) (device + 1));
 }
 
 inline drjit::dr_tuple<size_t, AllocType, int> alloc_info_decode(AllocInfo value) {
     return drjit::dr_tuple((size_t)(value >> 16),
                            (AllocType)((value >> 8) & 0xFF),
-                           (int) (value & 0xFF));
+                           ((int) (value & 0xFF) - 1));
 }
 
 using AllocInfoMap = tsl::robin_map<AllocInfo, std::vector<void *>, UInt64Hasher>;

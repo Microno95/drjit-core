@@ -155,6 +155,8 @@ void jitc_assemble(ThreadState *ts, ScheduledGroup group) {
         // Some sanity checks
         if (unlikely((JitBackend) v->backend != backend))
             jitc_raise("jit_assemble(): variable r%u scheduled in wrong ThreadState", index);
+        if (unlikely(v->device != (int32_t) ts->device && v->device >= 0 && ts->device >= 0))
+            jitc_raise("jit_assemble(): variable r%u scheduled on wrong device!", index);
         if (unlikely(v->ref_count == 0))
             jitc_fail("jit_assemble(): schedule contains unreferenced variable r%u!", index);
         if (unlikely(v->size != 1 && v->size != group.size))

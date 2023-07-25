@@ -73,6 +73,7 @@ auto jitc_var_check_impl(const char *name, std::index_sequence<Is...>, Args... a
     JitBackend backend = JitBackend::Invalid;
     VarType type = VarType::Void;
     uint32_t size = 0;
+    int32_t device = -1;
     const char *err = nullptr;
 
     for (uint32_t i = 0; i < Size; ++i) {
@@ -135,6 +136,11 @@ auto jitc_var_check_impl(const char *name, std::index_sequence<Is...>, Args... a
             goto fail;
         }
 
+        if (unlikely(device >= 0 && vi->device >= 0 && vi->device != device)) {
+            err = "operands are on different CUDA devices";
+            goto fail;
+        }
+
 #endif
 
         size = std::max(size, vi->size);
@@ -143,6 +149,7 @@ auto jitc_var_check_impl(const char *name, std::index_sequence<Is...>, Args... a
         literal &= is_literal;
         simplify |= is_literal;
         backend = (JitBackend) vi->backend;
+        device = std::max(vi->device, device);
         if (type == VarType::Void)
             type = (VarType) vi->type;
         v[i] = vi;
@@ -1463,6 +1470,7 @@ static uint32_t jitc_var_reindex(uint32_t var_index, uint32_t new_index,
         Variable v2;
         v2.kind = v->kind;
         v2.backend = v->backend;
+        v2.device = v->device;
         v2.type = v->type;
         v2.size = size;
         v2.optix = v->optix;

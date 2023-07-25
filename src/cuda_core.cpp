@@ -76,10 +76,6 @@ void jitc_cuda_compile(const char *buf, size_t buf_size, Kernel &kernel) {
     void *link_output = nullptr;
     size_t link_output_size = 0;
     cuda_check(cuLinkComplete(link_state, &link_output, &link_output_size));
-    if (rt != CUDA_SUCCESS)
-        jitc_fail("jit_cuda_compile(): compilation failed. Please see the PTX "
-                  "assembly listing and error message below:\n\n%s\n\n%s",
-                  buf, error_log);
 
     jitc_trace("Detailed linker output:\n%s", info_log);
 

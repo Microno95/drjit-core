@@ -43,44 +43,44 @@ TEST_CUDA(01_graphviz) {
     graph [dpi=50 fontname=Consolas];
     node [shape=record fontname=Consolas];
     edge [fontname=Consolas];
-    1 [label="{mov.u32 $r0, %r0\l|{Type: cuda u32|Size: 11}|{ID #1|E:0|I:1}}}"];
-    2 [label="{cvt.rn.$t0.$t1 $r0, $r1\l|{Type: cuda f32|Size: 11}|{ID #2|E:0|I:1}}}"];
-    3 [label="{Literal constant: 0.1|{Type: cuda f32|Size: 1}|{ID #3|E:0|I:1}}}" fillcolor=gray90 style=filled];
-    5 [label="{Label: \"r\"|mul.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda f32|Size: 11}|{ID #5|E:1|I:3}}}" fillcolor=wheat style=filled];
+    1 [label="{mov.u32 $r0, %r0\l|{Type: cuda:0 u32|Size: 11}|{ID #1|E:0|I:1}}}"];
+    2 [label="{cvt.rn.$t0.$t1 $r0, $r1\l|{Type: cuda:0 f32|Size: 11}|{ID #2|E:0|I:1}}}"];
+    3 [label="{Literal constant: 0.1|{Type: cuda:0 f32|Size: 1}|{ID #3|E:0|I:1}}}" fillcolor=gray90 style=filled];
+    5 [label="{Label: \"r\"|mul.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda:0 f32|Size: 11}|{ID #5|E:1|I:3}}}" fillcolor=wheat style=filled];
     subgraph cluster_5615eefd04289ffb {
         label="Scope 1";
-        6 [label="{Literal constant: 1|{Type: cuda f32|Size: 1}|{ID #6|E:0|I:1}}}" fillcolor=gray90 style=filled];
-        7 [label="{Label: \"a\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda f32|Size: 11}|{ID #7|E:1|I:1}}}" fillcolor=wheat style=filled];
+        6 [label="{Literal constant: 1|{Type: cuda:0 f32|Size: 1}|{ID #6|E:0|I:1}}}" fillcolor=gray90 style=filled];
+        7 [label="{Label: \"a\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda:0 f32|Size: 11}|{ID #7|E:1|I:1}}}" fillcolor=wheat style=filled];
     }
     subgraph cluster_6e8749cac8a1b5f3 {
         label="Scope 2";
-        8 [label="{Literal constant: 2|{Type: cuda f32|Size: 1}|{ID #8|E:0|I:1}}}" fillcolor=gray90 style=filled];
-        9 [label="{Label: \"b\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda f32|Size: 11}|{ID #9|E:1|I:1}}}" fillcolor=wheat style=filled];
+        8 [label="{Literal constant: 2|{Type: cuda:0 f32|Size: 1}|{ID #8|E:0|I:1}}}" fillcolor=gray90 style=filled];
+        9 [label="{Label: \"b\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda:0 f32|Size: 11}|{ID #9|E:1|I:1}}}" fillcolor=wheat style=filled];
     }
-    subgraph cluster_6e8749cac8a1b5f3 {
-        label="Scope 2";
-        subgraph cluster_2d27caeba104ea91 {
-            label="Nested scope";
-            10 [label="{Literal constant: 3|{Type: cuda f32|Size: 1}|{ID #10|E:0|I:1}}}" fillcolor=gray90 style=filled];
-            11 [label="{Label: \"c\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda f32|Size: 11}|{ID #11|E:1|I:0}}}" fillcolor=wheat style=filled];
-            12 [label="{Literal constant: 4|{Type: cuda f32|Size: 1}|{ID #12|E:0|I:2}}}" fillcolor=gray90 style=filled];
-            13 [label="{add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda f32|Size: 11}|{ID #13|E:1|I:0}}}"];
-        }
-    }
-    14 [label="{Literal constant: 5|{Type: cuda f32|Size: 1}|{ID #14|E:0|I:1}}}" fillcolor=gray90 style=filled];
-    15 [label="{Label: \"e\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda f32|Size: 11}|{ID #15|E:1|I:0}}}" fillcolor=wheat style=filled];
     subgraph cluster_6e8749cac8a1b5f3 {
         label="Scope 2";
         subgraph cluster_2d27caeba104ea91 {
             label="Nested scope";
-            17 [label="{Evaluated|{Type: cuda f32|Size: 11}|{ID #17|E:0|I:1}}}" fillcolor=lightblue2 style=filled];
+            10 [label="{Literal constant: 3|{Type: cuda:0 f32|Size: 1}|{ID #10|E:0|I:1}}}" fillcolor=gray90 style=filled];
+            11 [label="{Label: \"c\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda:0 f32|Size: 11}|{ID #11|E:1|I:0}}}" fillcolor=wheat style=filled];
+            12 [label="{Literal constant: 4|{Type: cuda:0 f32|Size: 1}|{ID #12|E:0|I:2}}}" fillcolor=gray90 style=filled];
+            13 [label="{add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda:0 f32|Size: 11}|{ID #13|E:1|I:0}}}"];
         }
     }
-    18 [label="{Placeholder|{Type: cuda f32|Size: 11}|{ID #18|E:1|I:0}}}" fillcolor=yellow style=filled];
-    19 [label="{Literal constant: 0|{Type: cuda u32|Size: 1}|{ID #19|E:0|I:1}}}" fillcolor=gray90 style=filled];
-    22 [label="{Evaluated (dirty)|{Type: cuda f32|Size: 11}|{ID #22|E:1|I:1}}}" fillcolor=salmon style=filled];
-    23 [label="{Literal constant: 0x000000000000|{Type: cuda ptr|Size: 1}|{ID #23|E:0|I:1}}}" fillcolor=gray90 style=filled];
-    24 [label="{mad.wide.$t3 %rd3, $r3, $s2, $r1\l.reg.$t2 $r0_unused\latom.global.add.$t2 $r0_unused, [%rd3], $r2\l|{Type: cuda void |Size: 1}|{ID #24|E:1|I:0}}}" fillcolor=yellowgreen style=filled];
+    14 [label="{Literal constant: 5|{Type: cuda:0 f32|Size: 1}|{ID #14|E:0|I:1}}}" fillcolor=gray90 style=filled];
+    15 [label="{Label: \"e\"|add.ftz.$t0 $r0, $r1, $r2\l|{Type: cuda:0 f32|Size: 11}|{ID #15|E:1|I:0}}}" fillcolor=wheat style=filled];
+    subgraph cluster_6e8749cac8a1b5f3 {
+        label="Scope 2";
+        subgraph cluster_2d27caeba104ea91 {
+            label="Nested scope";
+            17 [label="{Evaluated|{Type: cuda:0 f32|Size: 11}|{ID #17|E:0|I:1}}}" fillcolor=lightblue2 style=filled];
+        }
+    }
+    18 [label="{Placeholder|{Type: cuda:0 f32|Size: 11}|{ID #18|E:1|I:0}}}" fillcolor=yellow style=filled];
+    19 [label="{Literal constant: 0|{Type: cuda:0 u32|Size: 1}|{ID #19|E:0|I:1}}}" fillcolor=gray90 style=filled];
+    22 [label="{Evaluated (dirty)|{Type: cuda:0 f32|Size: 11}|{ID #22|E:1|I:1}}}" fillcolor=salmon style=filled];
+    23 [label="{Literal constant: 0x000000000000|{Type: cuda:0 ptr|Size: 1}|{ID #23|E:0|I:1}}}" fillcolor=gray90 style=filled];
+    24 [label="{mad.wide.$t3 %rd3, $r3, $s2, $r1\l.reg.$t2 $r0_unused\latom.global.add.$t2 $r0_unused, [%rd3], $r2\l|{Type: cuda:0 void |Size: 1}|{ID #24|E:1|I:0}}}" fillcolor=yellowgreen style=filled];
     1 -> 2;
     2 -> 5 [label=" 1"];
     3 -> 5 [label=" 2"];

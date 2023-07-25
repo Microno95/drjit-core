@@ -349,11 +349,11 @@ int main(int argc, char **argv) {
         });
 
         int tests_passed = 0,
-            tests_failed = 0;
+            tests_failed = 0,
+            total_tests  = 0;
 
         for (auto &test : *tests) {
-            fprintf(stdout, " - %s .. ", test.name);
-
+            ++total_tests;
             bool is_cuda = strstr(test.name, "_cuda"),
                  is_llvm = strstr(test.name, "_llvm"),
                  is_optix = strstr(test.name, "_optix");
@@ -361,46 +361,63 @@ int main(int argc, char **argv) {
             if ((is_cuda && !test_cuda) ||
                 (is_optix && !test_optix) ||
                 (is_llvm && !test_llvm)) {
+                fprintf(stdout, " - %s .. ", test.name);
                 fprintf(stdout, "skipped.\n");
                 continue;
             }
 
-            fflush(stdout);
-            log_value.clear();
-            jit_init((uint32_t)((is_cuda || is_optix) ? JitBackend::CUDA
-                                                      : JitBackend::LLVM));
+            int32_t device = -1;
+            if (is_cuda || is_optix)
+                device = 0;
+            else
+                fprintf(stdout, " - %s .. ", test.name);
+            while (true) {
+                if (is_cuda || is_optix)
+                    fprintf(stdout, " - %s [cuda:%d] .. ", test.name, device);
+                fflush(stdout);
+                log_value.clear();
+                jit_init((uint32_t) ((is_cuda || is_optix) ? JitBackend::CUDA
+                                                           : JitBackend::LLVM));
+                if (is_cuda || is_optix) {
+                    jit_cuda_set_device(device++);
+                    device = (device == jit_cuda_device_count()) ? -1 : device;
+                }
 #if defined(DRJIT_ENABLE_OPTIX)
-            jit_set_flag(JitFlag::ForceOptiX, is_optix);
-            if (is_optix)
-                jit_optix_context();
+                jit_set_flag(JitFlag::ForceOptiX, is_optix);
+                if (is_optix)
+                    jit_optix_context();
 #endif
 
 #if !defined(__aarch64__)
-            if (test_llvm)
-                jit_llvm_set_target("skylake", nullptr, 8);
+                if (test_llvm)
+                    jit_llvm_set_target("skylake", nullptr, 8);
 #endif
 
-            auto before = std::chrono::high_resolution_clock::now();
-            test.func();
-            auto after = std::chrono::high_resolution_clock::now();
-            float duration =
-                std::chrono::duration_cast<
-                    std::chrono::duration<float, std::milli>>(after - before)
-                    .count();
-            jit_shutdown(1);
+                auto before = std::chrono::high_resolution_clock::now();
+                test.func();
+                auto after = std::chrono::high_resolution_clock::now();
+                float duration =
+                        std::chrono::duration_cast<
+                                std::chrono::duration<float, std::milli>>(after - before)
+                                .count();
+                jit_shutdown(1);
 
-            if (test_check_log(test.name, (char *) log_value.c_str(), write_ref) != 0) {
-                tests_passed++;
-                fprintf(stdout, "passed (%.2f ms).\n", duration);
-            } else {
-                tests_failed++;
-                fprintf(stdout, "FAILED!\n");
+                if (test_check_log(test.name, (char *) log_value.c_str(), write_ref) != 0) {
+                    tests_passed++;
+                    fprintf(stdout, "passed (%.2f ms).\n", duration);
+                } else {
+                    tests_failed++;
+                    fprintf(stdout, "FAILED!\n");
+                }
+                if (device == -1)
+                    break;
+                ++total_tests;
             }
         }
 
         jit_shutdown(0);
 
-        int tests_skipped = (int) tests->size() - tests_passed - tests_failed;
+        int tests_skipped = total_tests - tests_passed - tests_failed;
         if (tests_skipped == 0)
             fprintf(stdout, "\nPassed %i/%i tests.\n", tests_passed,
                     tests_passed + tests_failed);

@@ -78,8 +78,8 @@ void jitc_cuda_assemble(ThreadState *ts, ScheduledGroup group,
     if (uses_optix) {
         /// Ensure OptiX is initialized
         (void) jitc_optix_context();
-        ts->optix_pipeline = state.optix_default_pipeline;
-        ts->optix_sbt = state.optix_default_sbt;
+        ts->optix_pipeline = state.optix_default_pipeline[ts->device];
+        ts->optix_sbt = state.optix_default_sbt[ts->device];
     }
 #endif
 
@@ -1045,7 +1045,7 @@ static void jitc_cuda_render_trace(uint32_t index, const Variable *v,
     OptixShaderBindingTable *sbt_p = (OptixShaderBindingTable*) sbt->literal;
     bool problem = false;
 
-    if (ts->optix_pipeline == state.optix_default_pipeline) {
+    if (ts->optix_pipeline == state.optix_default_pipeline[ts->device]) {
         ts->optix_pipeline = pipeline_p;
     } else if (ts->optix_pipeline != pipeline_p) {
         jitc_log(
@@ -1057,7 +1057,7 @@ static void jitc_cuda_render_trace(uint32_t index, const Variable *v,
         problem = true;
     }
 
-    if (ts->optix_sbt == state.optix_default_sbt) {
+    if (ts->optix_sbt == state.optix_default_sbt[ts->device]) {
         ts->optix_sbt = sbt_p;
     } else if (ts->optix_sbt != sbt_p) {
         jitc_log(

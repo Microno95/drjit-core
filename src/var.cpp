@@ -331,13 +331,16 @@ void jitc_lvn_drop(uint32_t index, const Variable *v) {
     VariableKey key(*v);
     LVNMap &cache = state.lvn_map;
     auto it = cache.find(key);
-    if (it != cache.end() && it.value() == index)
+    if (it != cache.end() && it.value() == index) {
         cache.erase(it);
+        jitc_trace("jitc_lvn_drop(r%u)", index);
+    }
 }
 
 /// Register a variable with cache used for common subexpression elimination
 void jitc_lvn_put(uint32_t index, const Variable *v) {
     state.lvn_map.try_emplace(VariableKey(*v), index);
+    jitc_trace("jitc_lvn_put(r%u)", index);
 }
 
 /// Query the type of a given variable
@@ -499,7 +502,7 @@ uint32_t jitc_var_new(Variable &v, bool disable_lvn) {
     if (unlikely(std::max(state.log_level_stderr, state.log_level_callback) >=
                  LogLevel::Debug)) {
         var_buffer.clear();
-        var_buffer.fmt("jit_var_new(%s r%u", type_name[v.type], index);
+        var_buffer.fmt("jit_var_new(%s, %s r%u", v.backend == (uint32_t)JitBackend::CUDA ? ("cuda:"+std::to_string(v.device)).c_str() : "LLVM", type_name[v.type], index);
         if (v.size > 1)
             var_buffer.fmt("[%u]", v.size);
 
@@ -571,6 +574,7 @@ uint32_t jitc_var_literal(JitBackend backend, VarType type, const void *value,
         v.type = (uint32_t) type;
         v.size = (uint32_t) size;
         v.backend = (uint32_t) backend;
+        v.device = (int32_t) thread_state(backend)->device;
 
         return jitc_var_new(v);
     } else {
@@ -592,6 +596,7 @@ uint32_t jitc_var_pointer(JitBackend backend, const void *value,
     v.size = 1;
     v.literal = (uint64_t) (uintptr_t) value;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) thread_state(backend)->device;
 
     /* A value variable (especially a pointer to some memory region) can
        specify an optional dependency to keep that memory region alive. The
@@ -622,6 +627,7 @@ uint32_t jitc_var_counter(JitBackend backend, size_t size,
     Variable v;
     v.kind = VarKind::Counter;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) thread_state(backend)->device;
     v.type = (uint32_t) VarType::UInt32;
     v.size = (uint32_t) size;
     return jitc_var_new(v);
@@ -636,6 +642,7 @@ uint32_t jitc_var_wrap_vcall(uint32_t index) {
     if (v->is_literal() && (jitc_flags() & (uint32_t) JitFlag::VCallOptimize)) {
         Variable v2;
         v2.backend = v->backend;
+        v2.device = v->device;
         v2.kind = (uint32_t) VarKind::Literal;
         v2.literal = v->literal;
         v2.type = v->type;
@@ -648,6 +655,7 @@ uint32_t jitc_var_wrap_vcall(uint32_t index) {
                             ? "mov.$t0 $r0, $r1"
                             : "$r0 = bitcast <$w x $t0> $r1 to <$w x $t0>");
     v2.backend = v->backend;
+    v2.device = v->device;
     v2.kind = (uint32_t) VarKind::Stmt;
     v2.type = v->type;
     v2.size = 1;
@@ -675,6 +683,7 @@ uint32_t jitc_var_stmt(JitBackend backend, VarType vt, const char *stmt,
     uint32_t size = n_dep == 0 ? 1 : 0;
     bool dirty = false, uninitialized = false, placeholder = false;
     Variable *v[4] { };
+    int device = n_dep == 0 ? thread_state(backend)->device : jitc_var(dep[0])->device;
 
     if (unlikely(n_dep > 4))
         jitc_fail("jit_var_stmt(): 0-4 dependent variables supported!");
@@ -686,6 +695,9 @@ uint32_t jitc_var_stmt(JitBackend backend, VarType vt, const char *stmt,
             dirty |= vi->is_dirty();
             placeholder |= (bool) vi->placeholder;
             v[i] = vi;
+            if (device != vi->device)
+                jitc_raise("jit_var_stmt(): loop state variables have "
+                           "inconsistent devices (%u vs %u)!", device, vi->device);
         } else {
             uninitialized = true;
         }
@@ -728,6 +740,7 @@ uint32_t jitc_var_stmt(JitBackend backend, VarType vt, const char *stmt,
     v2.size = size;
     v2.type = (uint32_t) vt;
     v2.backend = (uint32_t) backend;
+    v2.device = (int32_t) device;
     v2.free_stmt = stmt_static == 0;
     v2.placeholder = placeholder;
 
@@ -752,6 +765,7 @@ uint32_t jitc_var_new_node_0(JitBackend backend, VarKind kind, VarType vt,
     v.size = size;
     v.kind = kind;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) thread_state(backend)->device;
     v.type = (uint32_t) vt;
     v.placeholder = placeholder;
 
@@ -776,6 +790,7 @@ uint32_t jitc_var_new_node_1(JitBackend backend, VarKind kind, VarType vt,
     v.size = size;
     v.kind = kind;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) v0->device;
     v.type = (uint32_t) vt;
     v.placeholder = placeholder;
 
@@ -796,6 +811,10 @@ uint32_t jitc_var_new_node_2(JitBackend backend, VarKind kind, VarType vt,
             jitc_fail("jit_var_new_node(): variable remains dirty!");
     }
 
+    if (v0->device != v1->device && v0->device >= 0 && v1->device >= 0) {
+        jitc_fail("jit_var_new_node(): variables exist on different devices!");
+    }
+
     Variable v;
     v.dep[0] = a0;
     v.dep[1] = a1;
@@ -803,6 +822,7 @@ uint32_t jitc_var_new_node_2(JitBackend backend, VarKind kind, VarType vt,
     v.size = size;
     v.kind = kind;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) std::max(v0->device, v1->device);
     v.type = (uint32_t) vt;
     v.placeholder = placeholder;
 
@@ -823,6 +843,12 @@ uint32_t jitc_var_new_node_3(JitBackend backend, VarKind kind, VarType vt,
             jitc_fail("jit_var_new_node(): variable remains dirty!");
     }
 
+    if ((v0->device != v1->device && v0->device >= 0 && v1->device >= 0) ||
+        (v0->device != v2->device && v0->device >= 0 && v2->device >= 0) ||
+        (v2->device != v1->device && v2->device >= 0 && v1->device >= 0)) {
+        jitc_fail("jit_var_new_node(): variables exist on different devices!");
+    }
+
     Variable v;
     v.dep[0] = a0;
     v.dep[1] = a1;
@@ -831,6 +857,7 @@ uint32_t jitc_var_new_node_3(JitBackend backend, VarKind kind, VarType vt,
     v.size = size;
     v.kind = kind;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) std::max(v0->device, std::max(v1->device, v2->device));
     v.type = (uint32_t) vt;
     v.placeholder = placeholder;
 
@@ -853,6 +880,15 @@ uint32_t jitc_var_new_node_4(JitBackend backend, VarKind kind, VarType vt,
             jitc_fail("jit_var_new_node(): variable remains dirty!");
     }
 
+    if ((v0->device != v1->device && v0->device >= 0 && v1->device >= 0) ||
+        (v0->device != v2->device && v0->device >= 0 && v2->device >= 0) ||
+        (v0->device != v3->device && v0->device >= 0 && v3->device >= 0) ||
+        (v1->device != v2->device && v1->device >= 0 && v2->device >= 0) ||
+        (v1->device != v3->device && v1->device >= 0 && v3->device >= 0) ||
+        (v3->device != v2->device && v3->device >= 0 && v2->device >= 0)) {
+        jitc_fail("jit_var_new_node(): variables exist on different devices!");
+    }
+
     Variable v;
     v.dep[0] = a0;
     v.dep[1] = a1;
@@ -862,6 +898,7 @@ uint32_t jitc_var_new_node_4(JitBackend backend, VarKind kind, VarType vt,
     v.size = size;
     v.kind = kind;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) std::max(v0->device, std::max(v1->device, std::max(v2->device, v3->device)));
     v.type = (uint32_t) vt;
     v.placeholder = placeholder;
 
@@ -909,7 +946,7 @@ int jitc_var_device(uint32_t index) {
     if (v->is_data())
         return jitc_malloc_device(v->data);
 
-    return thread_state(v->backend)->device;
+    return v->device;
 }
 
 /// Mark a variable as a scatter operation that writes to 'target'
@@ -1146,6 +1183,7 @@ uint32_t jitc_var_mem_map(JitBackend backend, VarType type, void *ptr,
     v.kind = (uint32_t) VarKind::Data;
     v.type = (uint32_t) type;
     v.backend = (uint32_t) backend;
+    v.device = (int32_t) thread_state(backend)->device;
     v.data = ptr;
     v.size = (uint32_t) size;
     v.retain_data = free == 0;
@@ -1240,6 +1278,7 @@ uint32_t jitc_var_copy(uint32_t index) {
         Variable v2;
         v2.type = v->type;
         v2.backend = v->backend;
+        v2.device = v->device;
         v2.placeholder = v->placeholder;
         v2.size = v->size;
 
@@ -1300,6 +1339,7 @@ uint32_t jitc_var_resize(uint32_t index, size_t size) {
         v2.kind = (uint32_t) VarKind::Stmt;
         v2.type = v->type;
         v2.backend = v->backend;
+        v2.device = v->device;
         v2.placeholder = v->placeholder;
         v2.size = (uint32_t) size;
         v2.dep[0] = index;
@@ -1321,7 +1361,7 @@ uint32_t jitc_var_migrate(uint32_t src_index, AllocType dst_type) {
         return 0;
 
     Variable *v = jitc_var(src_index);
-    JitBackend backend = (JitBackend) v->backend;
+    auto backend = (JitBackend) v->backend;
 
     if (v->is_literal()) {
         size_t size = v->size;
@@ -1376,12 +1416,12 @@ uint32_t jitc_var_migrate(uint32_t src_index, AllocType dst_type) {
 
     auto it = state.alloc_used.find((uintptr_t) v->data);
     if (unlikely(it == state.alloc_used.end())) {
-        /* Cannot resolve pointer to allocation, it was likely
+        /* Cannot resolve pointer to allocation, it was
            likely created by another framework */
         if ((JitBackend) v->backend == JitBackend::CUDA) {
             int type;
-            ThreadState *ts = thread_state(v->backend);
-            scoped_set_context guard(ts->context);
+            auto device = state.devices[(std::size_t) v->device];
+            scoped_set_context guard(device.context);
             cuda_check(cuPointerGetAttribute(
                 &type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) v->data));
             if (type == CU_MEMORYTYPE_HOST)
@@ -1418,11 +1458,19 @@ uint32_t jitc_var_migrate(uint32_t src_index, AllocType dst_type) {
         jitc_var_inc_ref(dst_index, v);
     }
 
+
+    auto it_src = state.alloc_used.find((uintptr_t) src_ptr);
+    auto it_dst = state.alloc_used.find((uintptr_t) dst_ptr);
+
+    auto [size_src, type_src, device_src] = alloc_info_decode(it_src->second);
+    auto [size_dst, type_dst, device_dst] = alloc_info_decode(it_dst->second);
+
     jitc_log(Debug,
              "jit_var_migrate(r%u <- r%u, " DRJIT_PTR " <- " DRJIT_PTR
-             ", %s <- %s)",
+             ", %s%s <- %s%s)",
              dst_index, src_index, (uintptr_t) dst_ptr, (uintptr_t) src_ptr,
-             alloc_type_name[(int) dst_type], alloc_type_name[(int) src_type]);
+             alloc_type_name[(int) dst_type], (dst_type == AllocType::Device) ? (std::string(":") + std::to_string(device_dst)).c_str() : "",
+             alloc_type_name[(int) src_type], (src_type == AllocType::Device) ? (std::string(":") + std::to_string(device_src)).c_str() : "");
 
     return dst_index;
 }
@@ -1638,9 +1686,10 @@ const char *jitc_var_whos() {
         const Variable *v = jitc_var(index);
         size_t mem_size = (size_t) v->size * (size_t) type_size[v->type];
 
-        var_buffer.fmt("  %-9u %s %-5s ", index,
+        var_buffer.fmt("  %-9u %s%s %-5s ", index,
                        (JitBackend) v->backend == JitBackend::CUDA ? "cuda"
                                                                    : "llvm",
+                       v->device == -1 ? "" : std::to_string(v->device).c_str(),
                        type_name_short[v->type]);
 
         if (v->is_literal()) {
@@ -1860,8 +1909,9 @@ const char *jitc_var_graphviz() {
         if (labeled && !color)
             color = "wheat";
 
-        var_buffer.fmt("|{Type: %s %s|Size: %u}|{r%u|Refs: %u}}",
-            (JitBackend) v->backend == JitBackend::CUDA ? "cuda" : "llvm",
+        var_buffer.fmt("|{Type: %s%s %s|Size: %u}|{r%u|Refs: %u}}",
+            (JitBackend) v->backend == JitBackend::CUDA ? "cuda:" : "llvm",
+            v->device == -1 ? "" : std::to_string(v->device).c_str(),
             type_name_short[v->type], v->size, index,
             (uint32_t) v->ref_count);
 
