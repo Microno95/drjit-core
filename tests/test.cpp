@@ -351,7 +351,7 @@ int main(int argc, char **argv) {
         int tests_passed = 0,
             tests_failed = 0;
         std::size_t total_tests  = 0,
-                    max_reps = 1,
+                    max_reps = 8,
                     device_count = 1;
 
         for (auto &test : *tests) {

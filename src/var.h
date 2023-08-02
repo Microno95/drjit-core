@@ -114,7 +114,7 @@ extern void jitc_var_dec_ref_se(uint32_t index, Variable *v) noexcept(true);
 /// Decrease the side effect reference count of a given variable
 extern void jitc_var_dec_ref_se(uint32_t index) noexcept(true);
 
-// Query the type of a given variable
+/// Query the type of a given variable
 extern VarType jitc_var_type(uint32_t index);
 
 /// Assign a descriptive label to a variable with only 1 reference

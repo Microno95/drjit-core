@@ -84,7 +84,7 @@ OptixDeviceContext jitc_optix_context() {
     // Create default OptiX pipeline for testcases, etc.
     // =====================================================
 
-    if (!state.optix_default_sbt_index) {
+    if (!state.optix_default_sbt_index[ts->device]) {
         OptixPipelineCompileOptions pco = jitc_optix_default_compile_options();
         OptixModuleCompileOptions mco { };
 #ifndef DRJIT_ENABLE_OPTIX_DEBUG_VALIDATION_ON

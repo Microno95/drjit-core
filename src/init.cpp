@@ -624,29 +624,31 @@ void *jitc_find_library(const char *fname, const char *glob_pat,
     mbstowcs(buf, fname, sizeof(buf) / sizeof(wchar_t));
     void* handle = (void *) LoadLibraryW(env_var_val ? env_var_val : buf);
     if (!handle) {
-        LPWSTR errorText = nullptr;
-        FormatMessageW(
-                // use system message tables to retrieve error text
-                FORMAT_MESSAGE_FROM_SYSTEM
-                // allocate buffer on local heap for error text
-                |FORMAT_MESSAGE_ALLOCATE_BUFFER
-                // Important! will fail otherwise, since we're not
-                // (and CANNOT) pass insertion parameters
-                |FORMAT_MESSAGE_IGNORE_INSERTS,
-                nullptr,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
-                GetLastError(),
-                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                (LPWSTR)&errorText,  // output
-                0, // minimum size for output buffer
-                nullptr);   // arguments - see note
+        if (env_var_val) {
+            LPWSTR errorText = nullptr;
+            FormatMessageW(
+                    // use system message tables to retrieve error text
+                    FORMAT_MESSAGE_FROM_SYSTEM
+                    // allocate buffer on local heap for error text
+                    | FORMAT_MESSAGE_ALLOCATE_BUFFER
+                    // Important! will fail otherwise, since we're not
+                    // (and CANNOT) pass insertion parameters
+                    | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    nullptr,    // unused with FORMAT_MESSAGE_FROM_SYSTEM
+                    GetLastError(),
+                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                    (LPWSTR) &errorText,  // output
+                    0, // minimum size for output buffer
+                    nullptr);   // arguments - see note
 
-        if ( nullptr != errorText )
-        {
-            // ... do something with the string `errorText` - log it, display it to the user, etc.
-            jitc_log(Warn, "LoadLibraryW could not load library at %S with error: [%d] %S", env_var_val ? env_var_val : buf, GetLastError(), errorText);
-            // release memory allocated by FormatMessage()
-            LocalFree(errorText);
-            errorText = nullptr;
+            if (nullptr != errorText) {
+                // ... do something with the string `errorText` - log it, display it to the user, etc.
+                jitc_log(Warn, "jit_find_library(): Unable to load \"%s\": [%d] %S!",
+                         env_var_val, GetLastError(), errorText);
+                // release memory allocated by FormatMessage()
+                LocalFree(errorText);
+                errorText = nullptr;
+            }
         }
     }
 #endif
