@@ -349,8 +349,10 @@ int main(int argc, char **argv) {
         });
 
         int tests_passed = 0,
-            tests_failed = 0,
-            total_tests  = 0;
+            tests_failed = 0;
+        std::size_t total_tests  = 0,
+                    max_reps = 1,
+                    device_count = 1;
 
         for (auto &test : *tests) {
             ++total_tests;
@@ -369,18 +371,21 @@ int main(int argc, char **argv) {
             int32_t device = -1;
             if (is_cuda || is_optix)
                 device = 0;
-            else
-                fprintf(stdout, " - %s .. ", test.name);
+            std::size_t reps = 0;
             while (true) {
                 if (is_cuda || is_optix)
                     fprintf(stdout, " - %s [cuda:%d] .. ", test.name, device);
+                else
+                    fprintf(stdout, " - %s .. ", test.name);
+                if (max_reps > 1)
+                    fprintf(stdout, "rep: %zd .. ", reps);
                 fflush(stdout);
                 log_value.clear();
-                jit_init((uint32_t) ((is_cuda || is_optix) ? JitBackend::CUDA
-                                                           : JitBackend::LLVM));
+                jit_init((uint32_t) ((is_cuda || is_optix) ? JitBackend::CUDA : JitBackend::LLVM));
                 if (is_cuda || is_optix) {
                     jit_cuda_set_device(device++);
                     device = (device == jit_cuda_device_count()) ? -1 : device;
+                    device_count = jit_cuda_device_count() > 1 ? jit_cuda_device_count() : 1;
                 }
 #if defined(DRJIT_ENABLE_OPTIX)
                 jit_set_flag(JitFlag::ForceOptiX, is_optix);
@@ -409,15 +414,26 @@ int main(int argc, char **argv) {
                     tests_failed++;
                     fprintf(stdout, "FAILED!\n");
                 }
-                if (device == -1)
-                    break;
-                ++total_tests;
+                if (device == -1) {
+                    if (++reps < max_reps) {
+                        device = is_cuda || is_optix ? 0 : -1;
+                    } else {
+                        break;
+                    }
+                }
             }
         }
 
+        /// Count number cuda and optix tests, then multiply by the number of cuda devices minus one to get
+        /// the total number of additional tests added by each additional device
+        total_tests = std::count_if(tests->begin(), tests->end(), [](const Test &a) {
+            return strstr(a.name, "_cuda") || strstr(a.name, "_optix");
+        });
+        total_tests = tests->size() * max_reps + total_tests * max_reps * (device_count - 1);
+
         jit_shutdown(0);
 
-        int tests_skipped = total_tests - tests_passed - tests_failed;
+        int tests_skipped = (int) (total_tests - tests_passed - tests_failed);
         if (tests_skipped == 0)
             fprintf(stdout, "\nPassed %i/%i tests.\n", tests_passed,
                     tests_passed + tests_failed);
